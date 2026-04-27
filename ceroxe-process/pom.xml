@@ -7,60 +7,32 @@
     <parent>
         <groupId>fun.ceroxe.api</groupId>
         <artifactId>ceroxe-parent</artifactId>
-        <version>0.2.7</version> <!-- 修正：统一到 0.2.7 -->
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>ceroxe-process</artifactId>
-    <version>0.2.7</version> <!-- 关键修复：显式声明版本，解决 Portal 坐标获取失败 -->
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>CeroxeAPI Process</name>
     <description>System process management module for CeroxeAPI.</description>
     <url>https://github.com/CeroxeAnivie/CeroxeAPI</url>
 
-    <!-- 1. 许可证信息 (已改为 MIT) -->
-    <licenses>
-        <license>
-            <name>MIT License</name>
-            <url>https://opensource.org/licenses/MIT</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <!-- 2. 开发者信息 (已更新邮箱) -->
-    <developers>
-        <developer>
-            <id>CeroxeAnivie</id>
-            <name>Ceroxe</name>
-            <email>1591117599@qq.com</email>
-            <organization>Ceroxe</organization>
-            <url>https://github.com/CeroxeAnivie</url>
-        </developer>
-    </developers>
-
-    <!-- 3. 源码仓库信息 -->
-    <scm>
-        <connection>scm:git:git://github.com/CeroxeAnivie/CeroxeAPI.git</connection>
-        <developerConnection>scm:git:ssh://github.com:CeroxeAnivie/CeroxeAPI.git</developerConnection>
-        <url>https://github.com/CeroxeAnivie/CeroxeAPI</url>
-    </scm>
-
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>5.14.0</version>
+            <version>${jna.version}</version>
         </dependency>
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna-platform</artifactId>
-            <version>5.14.0</version>
+            <version>${jna.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

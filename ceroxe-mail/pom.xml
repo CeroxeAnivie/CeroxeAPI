@@ -1,59 +1,33 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xmlns="http://maven.apache.org/POM/4.0.0"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
         <groupId>fun.ceroxe.api</groupId>
         <artifactId>ceroxe-parent</artifactId>
-        <version>0.2.7</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>ceroxe-mail</artifactId>
-    <!-- 关键修复：显式声明版本号，解决 Portal 无法获取坐标的问题 -->
-    <version>0.2.7</version>
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>CeroxeAPI Mail</name>
     <description>Mail sending utilities for CeroxeAPI.</description>
     <url>https://github.com/CeroxeAnivie/CeroxeAPI</url>
 
-    <licenses>
-        <license>
-            <name>MIT License</name>
-            <url>https://opensource.org/licenses/MIT</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <developers>
-        <developer>
-            <id>CeroxeAnivie</id>
-            <name>Ceroxe</name>
-            <email>1591117599@qq.com</email>
-            <organization>Ceroxe</organization>
-            <url>https://github.com/CeroxeAnivie</url>
-        </developer>
-    </developers>
-
-    <scm>
-        <connection>scm:git:git://github.com/CeroxeAnivie/CeroxeAPI.git</connection>
-        <developerConnection>scm:git:ssh://github.com:CeroxeAnivie/CeroxeAPI.git</developerConnection>
-        <url>https://github.com/CeroxeAnivie/CeroxeAPI</url>
-    </scm>
-
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>org.eclipse.angus</groupId>
             <artifactId>angus-mail</artifactId>
-            <version>2.0.4</version>
+            <version>${angus.mail.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

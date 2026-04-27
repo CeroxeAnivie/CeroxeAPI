@@ -32,6 +32,7 @@ public class Loggist implements AutoCloseable {
     private static final int BATCH_SIZE = 512;
     // 优化：换行符缓存
     private static final byte[] LINE_SEPARATOR_BYTES = System.lineSeparator().getBytes(StandardCharsets.UTF_8);
+    private static final int BUFFER_CAPACITY = 64 * 1024;
     public static int WINDOWS_VERSION = -1;
     // 队列容量保持不变，但在高并发下批处理能更快消费
     private final BlockingQueue<LogEvent> logQueue = new ArrayBlockingQueue<>(10000);
@@ -40,7 +41,7 @@ public class Loggist implements AutoCloseable {
     private final AtomicBoolean isShutdown = new AtomicBoolean(false);
     private final Path logFilePath;
     // 优化：扩大缓冲区至 64KB 以减少系统调用
-    private final ByteBuffer buffer = ByteBuffer.allocateDirect(64 * 1024);
+    private final ByteBuffer buffer = ByteBuffer.allocateDirect(BUFFER_CAPACITY);
     private final ReentrantLock fileLock = new ReentrantLock();
     private FileChannel fileChannel;
 
@@ -57,7 +58,10 @@ public class Loggist implements AutoCloseable {
     private void initializeFile() {
         try {
             if (!Files.exists(logFilePath)) {
-                Files.createDirectories(logFilePath.getParent());
+                Path parent = logFilePath.toAbsolutePath().getParent();
+                if (parent != null) {
+                    Files.createDirectories(parent);
+                }
                 Files.createFile(logFilePath);
             }
 
@@ -116,23 +120,12 @@ public class Loggist implements AutoCloseable {
                             byte[] bytes = stringBuilder.toString().getBytes(StandardCharsets.UTF_8);
                             stringBuilder.setLength(0); // 清空builder
 
-                            if (buffer.remaining() < bytes.length) {
-                                buffer.flip();
-                                while (buffer.hasRemaining()) {
-                                    fileChannel.write(buffer);
-                                }
-                                buffer.clear();
-                            }
-                            buffer.put(bytes);
+                            writeBytesToChannel(bytes);
                         }
 
                         // 批次处理完后，如果缓冲区有数据，建议刷入通道（但不强制刷盘fsync，保持性能）
                         if (buffer.position() > 0) {
-                            buffer.flip();
-                            while (buffer.hasRemaining()) {
-                                fileChannel.write(buffer);
-                            }
-                            buffer.clear();
+                            flushBufferLocked();
                         }
                     } finally {
                         fileLock.unlock();
@@ -179,17 +172,10 @@ public class Loggist implements AutoCloseable {
                 byte[] bytes = stringBuilder.toString().getBytes(StandardCharsets.UTF_8);
                 stringBuilder.setLength(0);
 
-                if (buffer.remaining() < bytes.length) {
-                    buffer.flip();
-                    fileChannel.write(buffer);
-                    buffer.clear();
-                }
-                buffer.put(bytes);
+                writeBytesToChannel(bytes);
             }
             if (buffer.position() > 0) {
-                buffer.flip();
-                fileChannel.write(buffer);
-                buffer.clear();
+                flushBufferLocked();
             }
         } catch (Exception e) {
             System.err.println("Error writing remaining log on shutdown: " + e.getMessage());
@@ -329,9 +315,7 @@ public class Loggist implements AutoCloseable {
         fileLock.lock();
         try {
             if (buffer.position() > 0) {
-                buffer.flip();
-                fileChannel.write(buffer);
-                buffer.clear();
+                flushBufferLocked();
             }
             if (fileChannel != null && fileChannel.isOpen()) {
                 fileChannel.close();
@@ -346,6 +330,7 @@ public class Loggist implements AutoCloseable {
 
     public void write(String str, boolean isNewLine) {
         if (!isOpen.get()) return;
+        Objects.requireNonNull(str, "str");
 
         // 优化：避免不必要的字符串拼接和正则
         fileLock.lock();
@@ -355,12 +340,16 @@ public class Loggist implements AutoCloseable {
             // 检查空间：字符串 + 可能的换行符
             int required = bytes.length + (isNewLine ? LINE_SEPARATOR_BYTES.length : 0);
 
-            if (buffer.remaining() < required) {
-                buffer.flip();
-                while (buffer.hasRemaining()) {
-                    fileChannel.write(buffer);
+            if (required > BUFFER_CAPACITY) {
+                writeBytesToChannel(bytes);
+                if (isNewLine) {
+                    writeBytesToChannel(LINE_SEPARATOR_BYTES);
                 }
-                buffer.clear();
+                return;
+            }
+
+            if (buffer.remaining() < required) {
+                flushBufferLocked();
             }
 
             buffer.put(bytes);
@@ -377,6 +366,30 @@ public class Loggist implements AutoCloseable {
 
     public boolean isOpenChannel() {
         return isOpen.get();
+    }
+
+    private void writeBytesToChannel(byte[] bytes) throws IOException {
+        if (bytes.length > BUFFER_CAPACITY) {
+            flushBufferLocked();
+            ByteBuffer directWrite = ByteBuffer.wrap(bytes);
+            while (directWrite.hasRemaining()) {
+                fileChannel.write(directWrite);
+            }
+            return;
+        }
+
+        if (buffer.remaining() < bytes.length) {
+            flushBufferLocked();
+        }
+        buffer.put(bytes);
+    }
+
+    private void flushBufferLocked() throws IOException {
+        buffer.flip();
+        while (buffer.hasRemaining()) {
+            fileChannel.write(buffer);
+        }
+        buffer.clear();
     }
 
     private void gc() {

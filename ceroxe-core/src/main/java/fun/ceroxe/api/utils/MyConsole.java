@@ -120,7 +120,6 @@ public class MyConsole {
             terminal.close();
         } catch (IOException ignored) {
         }
-        Runtime.getRuntime().halt(0);
     }
 
     // --- Log API with source parameter ---

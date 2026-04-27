@@ -2,83 +2,73 @@ package fun.ceroxe.api.security.encryption;
 
 import javax.crypto.Cipher;
 import javax.crypto.NoSuchPaddingException;
-import java.security.*;
+import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
+import java.security.PrivateKey;
+import java.security.PublicKey;
+import java.util.Objects;
 
 public final class RSAUtil {
-    private Cipher enCipher;
-    private Cipher deCipher;
-    private PublicKey publicKey;
-    private PrivateKey privateKey;
+    private static final String KEY_ALGORITHM = "RSA";
+    private static final String TRANSFORMATION = "RSA/ECB/PKCS1Padding";
+
+    private volatile PublicKey publicKey;
+    private volatile PrivateKey privateKey;
 
     public RSAUtil(int keySize) {
+        if (keySize < 1024) {
+            throw new IllegalArgumentException("RSA key size must be at least 1024 bits");
+        }
         try {
-            KeyPairGenerator keyPairGenerator;
-            keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-            keyPairGenerator.initialize(keySize); // 设置密钥长度
+            KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(KEY_ALGORITHM);
+            keyPairGenerator.initialize(keySize);
             KeyPair keyPair = keyPairGenerator.generateKeyPair();
-
-            // 获取公钥和私钥
             this.publicKey = keyPair.getPublic();
             this.privateKey = keyPair.getPrivate();
-
-            this.enCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            this.enCipher.init(Cipher.ENCRYPT_MODE, publicKey);
-
-            this.deCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            this.deCipher.init(Cipher.DECRYPT_MODE, privateKey);
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (NoSuchAlgorithmException e) {
+            throw new SecurityException("RSA algorithm not available", e);
         }
     }
 
     public RSAUtil(PublicKey publicKey, PrivateKey privateKey) {
+        setPublicKey(publicKey);
+        setPrivateKey(privateKey);
+    }
+
+    public byte[] encrypt(byte[] data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
+        }
+        return encrypt(data, 0, data.length);
+    }
+
+    public byte[] encrypt(byte[] data, int inputOffset, int inputLen) {
+        validateArrayRange(data, inputOffset, inputLen);
         try {
-            this.privateKey = privateKey;
-            this.publicKey = publicKey;
-
-            this.enCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            this.enCipher.init(Cipher.ENCRYPT_MODE, publicKey);
-
-            this.deCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            this.deCipher.init(Cipher.DECRYPT_MODE, privateKey);
-        } catch (InvalidKeyException | NoSuchAlgorithmException | NoSuchPaddingException e) {
-            e.printStackTrace();
+            Cipher cipher = newCipher(Cipher.ENCRYPT_MODE, publicKey);
+            return cipher.doFinal(data, inputOffset, inputLen);
+        } catch (GeneralSecurityException e) {
+            throw new SecurityException("RSA encryption failed", e);
         }
     }
 
-    public synchronized byte[] encrypt(byte[] data) {
-        try {
-            return enCipher.doFinal(data);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
+    public byte[] decrypt(byte[] data) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
         }
+        return decrypt(data, 0, data.length);
     }
 
-    public synchronized byte[] encrypt(byte[] data, int inputOffset, int inputLen) {
+    public byte[] decrypt(byte[] data, int inputOffset, int inputLen) {
+        validateArrayRange(data, inputOffset, inputLen);
         try {
-            return enCipher.doFinal(data, inputOffset, inputLen);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    public synchronized byte[] decrypt(byte[] data) {
-        try {
-            return deCipher.doFinal(data);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
-        }
-    }
-
-    public synchronized byte[] decrypt(byte[] data, int inputOffset, int inputLen) {
-        try {
-            return deCipher.doFinal(data, inputOffset, inputLen);
-        } catch (Exception e) {
-            e.printStackTrace();
-            return null;
+            Cipher cipher = newCipher(Cipher.DECRYPT_MODE, privateKey);
+            return cipher.doFinal(data, inputOffset, inputLen);
+        } catch (GeneralSecurityException e) {
+            throw new SecurityException("RSA decryption failed", e);
         }
     }
 
@@ -87,12 +77,9 @@ public final class RSAUtil {
     }
 
     public void setPrivateKey(PrivateKey privateKey) {
-        this.privateKey = privateKey;
-        try {
-            this.deCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            this.deCipher.init(Cipher.DECRYPT_MODE, privateKey);
-        } catch (Exception ignore) {
-        }//impossible
+        PrivateKey validatedKey = Objects.requireNonNull(privateKey, "privateKey");
+        validateKey(Cipher.DECRYPT_MODE, validatedKey);
+        this.privateKey = validatedKey;
     }
 
     public PublicKey getPublicKey() {
@@ -100,11 +87,32 @@ public final class RSAUtil {
     }
 
     public void setPublicKey(PublicKey publicKey) {
-        this.publicKey = publicKey;
+        PublicKey validatedKey = Objects.requireNonNull(publicKey, "publicKey");
+        validateKey(Cipher.ENCRYPT_MODE, validatedKey);
+        this.publicKey = validatedKey;
+    }
+
+    private static Cipher newCipher(int mode, java.security.Key key)
+            throws NoSuchPaddingException, NoSuchAlgorithmException, InvalidKeyException {
+        Cipher cipher = Cipher.getInstance(TRANSFORMATION);
+        cipher.init(mode, key);
+        return cipher;
+    }
+
+    private static void validateKey(int mode, java.security.Key key) {
         try {
-            this.enCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
-            this.enCipher.init(Cipher.ENCRYPT_MODE, publicKey);
-        } catch (Exception ignore) {
-        }//impossible
+            newCipher(mode, key);
+        } catch (GeneralSecurityException e) {
+            throw new IllegalArgumentException("Invalid RSA key", e);
+        }
+    }
+
+    private static void validateArrayRange(byte[] data, int offset, int length) {
+        if (data == null) {
+            throw new IllegalArgumentException("data must not be null");
+        }
+        if (offset < 0 || length < 0 || offset > data.length - length) {
+            throw new IllegalArgumentException("Invalid offset or length");
+        }
     }
 }

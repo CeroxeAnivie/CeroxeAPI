@@ -7,55 +7,27 @@
     <parent>
         <groupId>fun.ceroxe.api</groupId>
         <artifactId>ceroxe-parent</artifactId>
-        <version>0.2.7</version> <!-- 修正：版本统一到 0.2.7 -->
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>ceroxe-detector</artifactId>
-    <version>0.2.7</version> <!-- 修正：显式声明版本，解决坐标获取失败报错 -->
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>CeroxeAPI Detector</name>
     <description>System hardware detection module for CeroxeAPI.</description>
     <url>https://github.com/CeroxeAnivie/CeroxeAPI</url>
 
-    <!-- 1. 许可证信息 (MIT) -->
-    <licenses>
-        <license>
-            <name>MIT License</name>
-            <url>https://opensource.org/licenses/MIT</url>
-            <distribution>repo</distribution>
-        </license>
-    </licenses>
-
-    <!-- 2. 开发者信息 -->
-    <developers>
-        <developer>
-            <id>CeroxeAnivie</id>
-            <name>Ceroxe</name>
-            <email>1591117599@qq.com</email>
-            <organization>Ceroxe</organization>
-            <url>https://github.com/CeroxeAnivie</url>
-        </developer>
-    </developers>
-
-    <!-- 3. 源码仓库信息 -->
-    <scm>
-        <connection>scm:git:git://github.com/CeroxeAnivie/CeroxeAPI.git</connection>
-        <developerConnection>scm:git:ssh://github.com:CeroxeAnivie/CeroxeAPI.git</developerConnection>
-        <url>https://github.com/CeroxeAnivie/CeroxeAPI</url>
-    </scm>
-
-    <properties>
-        <maven.compiler.source>21</maven.compiler.source>
-        <maven.compiler.target>21</maven.compiler.target>
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-    </properties>
-
     <dependencies>
         <dependency>
             <groupId>com.github.oshi</groupId>
             <artifactId>oshi-core</artifactId>
-            <version>6.9.1</version>
+            <version>${oshi.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

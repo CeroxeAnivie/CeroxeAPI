@@ -7,11 +7,11 @@
     <parent>
         <groupId>fun.ceroxe.api</groupId>
         <artifactId>ceroxe-parent</artifactId>
-        <version>0.2.7</version>
+        <version>1.0.0</version>
     </parent>
 
     <artifactId>ceroxe-core</artifactId>
-    <version>0.2.7</version> <!-- 关键：显式声明版本以解决 Portal 坐标解析问题 -->
+    <version>1.0.0</version>
     <packaging>jar</packaging>
 
     <name>CeroxeAPI Core</name>
@@ -22,12 +22,17 @@
         <dependency>
             <groupId>org.jline</groupId>
             <artifactId>jline</artifactId>
-            <version>3.27.1</version> <!-- 显式声明版本 -->
+            <version>${jline.version}</version>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-nop</artifactId>
-            <version>2.0.17</version>
+            <version>${slf4j.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

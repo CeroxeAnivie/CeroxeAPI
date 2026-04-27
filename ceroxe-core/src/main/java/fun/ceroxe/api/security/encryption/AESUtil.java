@@ -7,6 +7,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.GeneralSecurityException;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.util.Arrays;
 import java.util.Base64;
 
 /**
@@ -39,21 +40,42 @@ public class AESUtil {
             // 使用当前线程的随机源生成 Key，速度极快
             keyGen.init(keySize, THREAD_LOCAL_RANDOM.get());
             this.key = keyGen.generateKey();
-            this.keyBytes = this.key.getEncoded();
+            byte[] encodedKey = this.key.getEncoded();
+            validateAesKey(encodedKey);
+            this.keyBytes = Arrays.copyOf(encodedKey, encodedKey.length);
         } catch (NoSuchAlgorithmException e) {
             throw new SecurityException("AES algorithm not available", e);
         }
     }
 
     public AESUtil(SecretKey key) {
+        if (key == null) {
+            throw new IllegalArgumentException("AES key must not be null");
+        }
+        byte[] encodedKey = key.getEncoded();
+        validateAesKey(encodedKey);
         this.key = key;
-        this.keyBytes = key.getEncoded();
+        this.keyBytes = Arrays.copyOf(encodedKey, encodedKey.length);
     }
 
     public AESUtil(String encodedKeyString) {
+        if (encodedKeyString == null) {
+            throw new IllegalArgumentException("Encoded key must not be null");
+        }
         byte[] decodedKey = Base64.getDecoder().decode(encodedKeyString);
+        validateAesKey(decodedKey);
         this.key = new SecretKeySpec(decodedKey, "AES");
-        this.keyBytes = key.getEncoded();
+        this.keyBytes = Arrays.copyOf(decodedKey, decodedKey.length);
+    }
+
+    private static void validateAesKey(byte[] encodedKey) {
+        if (encodedKey == null) {
+            throw new IllegalArgumentException("AES key must expose encoded bytes");
+        }
+        int length = encodedKey.length;
+        if (length != 16 && length != 24 && length != 32) {
+            throw new IllegalArgumentException("AES key must be 128, 192, or 256 bits");
+        }
     }
 
     private static Cipher initCipher() {
@@ -162,7 +184,7 @@ public class AESUtil {
     }
 
     public byte[] getKeyBytes() {
-        return keyBytes;
+        return Arrays.copyOf(keyBytes, keyBytes.length);
     }
 
     public SecretKey getKey() {

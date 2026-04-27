@@ -1,82 +1,234 @@
-# CeroxeAPI
+﻿# CeroxeAPI
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Java](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://openjdk.org/projects/jdk/21/)
+[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://central.sonatype.com/)
 
-CeroxeAPI 是一个基于个人喜好编写的 Java 实用工具类集合。现已采用 **Maven 多模块架构** 重构，旨在提供更轻量、模块化的开发体验。
+CeroxeAPI 是一组面向 Java 21 的模块化工具 API，提供网络通信、加密、日志、线程、系统检测、进程管理、邮件发送等常用能力。
 
-如果你想使用，请联系作者QQ：**1591117599** 以获取支持。由于作者学业繁忙，没有时间做出详细文档，请谅解。
+从 `1.0.0` 开始，项目按 Maven 多模块方式发布。你可以只导入自己需要的模块，而不是一次性引入所有功能。
 
-## Table of Contents 目录
+## 版本说明
 
-- [Features (功能特性)](#features)
-- [Modules (模块说明)](#modules)
-- [Getting Started (快速开始)](#getting-started)
-- [License (开源协议)](#license)
+当前推荐版本：`1.0.0`
 
-## Features
+`1.0.0` 是一次新的稳定版本。所有模块版本已统一为 `1.0.0`，并补充了 Maven Wrapper 和正式测试。
 
-根据最新版本结构，主要包含以下功能：
+如果你使用过旧版本，请注意：
 
-- **Security & Encryption:** Ready-to-use AES and RSA encryption utilities.
-    - **安全与加密：** 开箱即用的 AES 和 RSA 加密工具类 (`security` 包)。
-- **Network Utilities:** Secure socket implementations and network helpers.
-    - **网络工具：** 安全套接字 (SecureSocket) 实现及网络辅助工具 (`net` 包)。
-- **Logging & Printing:** Custom logging wrappers for structured output.
-    - **日志与打印：** 自定义的日志记录器 (Loggist) 和打印工具 (`print` 包)。
-- **System Detection:** Hardware info (via Oshi) and Windows-specific operations.
-    - **系统检测：** 硬件信息检测 (OshiUtils) 和 Windows 系统操作 (`ceroxe-detector` 模块)。
-- **Console Utilities:** Enhanced console interactions (TUI helpers).
-    - **控制台工具：** 增强的控制台交互工具 (MyConsole) (`utils` 包)。
-- **Thread & Time:** Thread management and time calculation helpers.
-    - **线程与时间：** 线程管理器 (ThreadManager) 与时间工具 (TimeUtils)。
+- `SecureSocket` 协议在 `1.0.0` 中已经升级，旧版本客户端和新版本服务端不能混用。
+- 字节传输 API 统一为 `sendBytes` / `receiveBytes`。
+- 旧版本中的 `sendByte` / `receiveByte` 已移除。
 
-## Modules
+## 环境要求
 
-CeroxeAPI 现在分为以下 Maven 模块，您可以按需引用：
+- JDK `21` 或更高版本
+- Maven `3.9+`
+- 推荐使用项目自带 Maven Wrapper
 
-| Module Artifact ID    | Description                         | Key Packages                                  |
-|:----------------------|:------------------------------------|:----------------------------------------------|
-| **`ceroxe-core`**     | **核心模块**。包含绝大多数基础工具（加密、网络、日志、通用工具）。 | `security`, `net`, `print`, `utils`, `thread` |
-| **`ceroxe-detector`** | **检测器模块**。专注于操作系统交互和硬件信息获取。         | `oshi`, `windows`                             |
+Windows：
 
-## Getting Started 入门指南
-
-要在项目中使用 CeroxeAPI，请按照以下步骤操作。
-
-### 步骤 1：构建项目
-
-将项目克隆到本地后，在根目录（`ceroxe-parent` 所在目录）运行：
-
-```bash
-mvn clean install
+```powershell
+.\mvnw.cmd test
 ```
 
-### 步骤 2：添加到项目依赖
+Linux/macOS：
 
-现在您需要根据需求引用具体的子模块，而不是整个父工程。
+```bash
+./mvnw test
+```
 
-**如果您只需要基础工具（加密、网络、日志等）：**
+## 模块选择
+
+| 模块 | Maven Artifact ID | 适合场景 |
+| --- | --- | --- |
+| Core | `ceroxe-core` | 基础工具、加密、网络通信、日志、线程、控制台、配置读取 |
+| Detector | `ceroxe-detector` | 获取系统、硬件、网络、Windows 进程相关信息 |
+| Process | `ceroxe-process` | 启动并托管子进程 |
+| Mail | `ceroxe-mail` | 发送 SMTP 邮件 |
+
+## Maven 导入
+
+### 只使用核心工具
 
 ```xml
 <dependency>
     <groupId>fun.ceroxe.api</groupId>
     <artifactId>ceroxe-core</artifactId>
-    <version>0.2.5</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
-**如果您需要系统硬件检测功能：**
+### 使用系统检测功能
 
 ```xml
 <dependency>
     <groupId>fun.ceroxe.api</groupId>
     <artifactId>ceroxe-detector</artifactId>
-    <version>0.2.5</version>
+    <version>1.0.0</version>
 </dependency>
 ```
 
-*(注意：`ceroxe-detector` 通常会自动依赖 `ceroxe-core`，具体取决于您的内部配置)*
+### 使用进程管理功能
 
-## License
+```xml
+<dependency>
+    <groupId>fun.ceroxe.api</groupId>
+    <artifactId>ceroxe-process</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
 
-此项目遵循 [MIT License](https://opensource.org/licenses/MIT) 开源协议。
+### 使用邮件发送功能
+
+```xml
+<dependency>
+    <groupId>fun.ceroxe.api</groupId>
+    <artifactId>ceroxe-mail</artifactId>
+    <version>1.0.0</version>
+</dependency>
+```
+
+## Gradle 导入
+
+Kotlin DSL：
+
+```kotlin
+dependencies {
+    implementation("fun.ceroxe.api:ceroxe-core:1.0.0")
+}
+```
+
+Groovy DSL：
+
+```groovy
+dependencies {
+    implementation 'fun.ceroxe.api:ceroxe-core:1.0.0'
+}
+```
+
+其他模块同理，只需要替换 artifactId。
+
+## 快速使用
+
+### 加密工具
+
+```java
+import fun.ceroxe.api.security.encryption.AESUtil;
+
+AESUtil aes = new AESUtil(256);
+byte[] encrypted = aes.encrypt("hello".getBytes());
+byte[] plain = aes.decrypt(encrypted);
+```
+
+### 安全 Socket
+
+服务端：
+
+```java
+import fun.ceroxe.api.net.SecureServerSocket;
+import fun.ceroxe.api.net.SecureSocket;
+
+try (SecureServerSocket server = new SecureServerSocket(25565);
+     SecureSocket socket = server.accept()) {
+    byte[] data = socket.receiveBytes();
+    socket.sendBytes(data);
+}
+```
+
+客户端：
+
+```java
+import fun.ceroxe.api.net.SecureSocket;
+
+try (SecureSocket socket = new SecureSocket("127.0.0.1", 25565)) {
+    socket.sendBytes("hello".getBytes());
+    byte[] response = socket.receiveBytes();
+}
+```
+
+### 日志工具
+
+```java
+import fun.ceroxe.api.print.log.Loggist;
+import fun.ceroxe.api.print.log.LogType;
+import fun.ceroxe.api.print.log.State;
+
+try (Loggist log = new Loggist("logs/app.log")) {
+    log.say(new State(LogType.INFO, "app", "started"));
+}
+```
+
+### 系统检测
+
+```java
+import fun.ceroxe.api.OshiUtils;
+
+String os = OshiUtils.getOsString();
+String cpu = OshiUtils.getCpuModel();
+String memory = OshiUtils.getMemoryInfoReadable();
+```
+
+### 进程管理
+
+```java
+import fun.ceroxe.api.ProcessContainer;
+
+Process process = ProcessContainer.start("java", "-version");
+process.waitFor();
+```
+
+### 邮件发送
+
+```java
+import fun.ceroxe.api.EmailTool;
+
+EmailTool.EmailConfig config = new EmailTool.EmailConfig(
+        "smtp.example.com",
+        587,
+        "user@example.com",
+        "password",
+        null,
+        null
+);
+
+EmailTool.send(config, "target@example.com", "Subject", "<b>Hello</b>");
+```
+
+## 本地构建
+
+运行测试：
+
+```bash
+./mvnw test
+```
+
+安装到本地 Maven 仓库：
+
+```bash
+./mvnw clean install
+```
+
+跳过 GPG 的本地验证：
+
+```bash
+./mvnw clean verify -Dgpg.skip=true
+```
+
+## 发布说明
+
+发布到 Maven Central 需要配置：
+
+- Central Portal 凭据
+- GPG 签名密钥
+- Maven `settings.xml` 中的 `central` server
+
+发布命令：
+
+```bash
+./mvnw clean deploy
+```
+
+## 许可证
+
+CeroxeAPI 使用 [MIT License](https://opensource.org/licenses/MIT) 开源。

@@ -4,32 +4,50 @@ import fun.ceroxe.api.security.encryption.AESUtil;
 
 import javax.crypto.KeyAgreement;
 import javax.crypto.spec.SecretKeySpec;
-import java.io.*;
-import java.net.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.Closeable;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
-import java.security.*;
+import java.security.KeyFactory;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.spec.X509EncodedKeySpec;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.locks.ReentrantLock;
 
 /**
- * 工业级安全套接字实现 (Java 21 虚拟线程完全兼容版)
- * <p>
- * 修复与增强：
- * 1. 【完整性】补全了 shutdownInput/shutdownOutput 方法。
- * 2. 【无 Pinning】全链路使用 ReentrantLock 替代 synchronized。
- * 3. 【防 OOM】强制限制最大包体大小。
- * 4. 【流一致性】精准处理部分读取超时，防止数据错乱。
+ * 工业级安全套接字实现。
+ *
+ * <p>1.0.0 起，业务帧采用显式帧类型而不是复用 payload 值承载 EOF。
+ * 这样才能保证二进制转发对单字节 0x04 不再产生协议级冲突。
  */
 public class SecureSocket implements Closeable {
-    public static final String STOP_STRING = "\u0004";
-    public static final byte[] STOP_BYTE = new byte[]{0x04};
-
-    // 内部 IO 缓冲区大小 (32KB)
     private static final int BUFFER_SIZE = 32 * 1024;
     private static final String KEY_EXCHANGE_ALGO = "X25519";
+    private static final int INT_PAYLOAD_LENGTH = Integer.BYTES;
 
-    // ThreadLocal 缓存优化，避免高频创建开销
+    private static final byte FRAME_TYPE_STRING = 0x01;
+    private static final byte FRAME_TYPE_BYTES = 0x02;
+    private static final byte FRAME_TYPE_INT = 0x03;
+    private static final byte FRAME_TYPE_EOF = 0x04;
+
+    private static volatile int MAX_ALLOWED_PACKET_SIZE = 64 * 1024 * 1024;
+    private static volatile int DEFAULT_CONNECT_TIMEOUT_MILLIS = 5_000;
+
     private static final ThreadLocal<KeyPairGenerator> KEY_PAIR_GEN_TL = ThreadLocal.withInitial(() -> {
         try {
             return KeyPairGenerator.getInstance(KEY_EXCHANGE_ALGO);
@@ -37,6 +55,7 @@ public class SecureSocket implements Closeable {
             throw new RuntimeException(e);
         }
     });
+
     private static final ThreadLocal<KeyFactory> KEY_FACTORY_TL = ThreadLocal.withInitial(() -> {
         try {
             return KeyFactory.getInstance(KEY_EXCHANGE_ALGO);
@@ -45,17 +64,10 @@ public class SecureSocket implements Closeable {
         }
     });
 
-    // 默认最大包大小 64MB，防止内存溢出攻击
-    private static volatile int MAX_ALLOWED_PACKET_SIZE = 64 * 1024 * 1024;
-
     private final AtomicBoolean connectionClosed = new AtomicBoolean(false);
     private final AtomicBoolean connectionBroken = new AtomicBoolean(false);
-
-    // 【核心修复】使用 ReentrantLock 替代 synchronized，避免 Virtual Thread Pinning
     private final ReentrantLock handshakeLock = new ReentrantLock();
-    // 写锁：保证多线程发送不乱序
     private final ReentrantLock writeLock = new ReentrantLock();
-    // 读锁：保证多线程接收时数据包完整性
     private final ReentrantLock readLock = new ReentrantLock();
 
     private Socket socket;
@@ -66,42 +78,59 @@ public class SecureSocket implements Closeable {
     private volatile boolean handshakeCompleted = false;
     private boolean isServerMode = false;
 
-    // ==================== 构造函数 ====================
-
     public SecureSocket(String host, int port) throws IOException {
-        this(new Socket(host, port));
+        this(host, port, DEFAULT_CONNECT_TIMEOUT_MILLIS);
+    }
+
+    public SecureSocket(String host, int port, int connectTimeoutMillis) throws IOException {
+        this();
+        connect(host, port, connectTimeoutMillis);
         performClientHandshake();
     }
 
     public SecureSocket(Proxy proxy, String host, int port) throws IOException {
-        this.socket = new Socket(proxy);
-        initStreams();
-        this.socket.connect(new InetSocketAddress(host, port));
+        this(proxy, host, port, DEFAULT_CONNECT_TIMEOUT_MILLIS);
+    }
+
+    public SecureSocket(Proxy proxy, String host, int port, int connectTimeoutMillis) throws IOException {
+        this(new Socket(Objects.requireNonNull(proxy, "proxy")));
+        connect(host, port, connectTimeoutMillis);
         performClientHandshake();
     }
 
     public SecureSocket(Socket socket) throws IOException {
-        this.socket = socket;
-        // 强制优化底层参数
-        try {
-            if (!socket.getKeepAlive()) socket.setKeepAlive(true);
-            if (!socket.getTcpNoDelay()) socket.setTcpNoDelay(true);
-        } catch (SocketException ignored) {
+        this.socket = Objects.requireNonNull(socket, "socket");
+        configureSocket(socket);
+        if (socket.isConnected()) {
+            initStreams();
         }
-
-        initStreams();
-        this.handshakeCompleted = false;
     }
 
     public SecureSocket() throws IOException {
         this.socket = new Socket();
-        initStreams();
-        this.handshakeCompleted = false;
+        configureSocket(this.socket);
+    }
+
+    public static int getMaxAllowedPacketSize() {
+        return MAX_ALLOWED_PACKET_SIZE;
     }
 
     public static void setMaxAllowedPacketSize(int size) {
-        if (size <= 0) throw new IllegalArgumentException("Size must be positive");
+        if (size <= 0) {
+            throw new IllegalArgumentException("Size must be positive");
+        }
         MAX_ALLOWED_PACKET_SIZE = size;
+    }
+
+    public static int getDefaultConnectTimeoutMillis() {
+        return DEFAULT_CONNECT_TIMEOUT_MILLIS;
+    }
+
+    public static void setDefaultConnectTimeoutMillis(int timeoutMillis) {
+        if (timeoutMillis < 0) {
+            throw new IllegalArgumentException("Timeout must be zero or positive");
+        }
+        DEFAULT_CONNECT_TIMEOUT_MILLIS = timeoutMillis;
     }
 
     protected void initServerMode() {
@@ -109,37 +138,96 @@ public class SecureSocket implements Closeable {
         this.handshakeCompleted = false;
     }
 
+    public void connect(String host, int port) throws IOException {
+        connect(host, port, DEFAULT_CONNECT_TIMEOUT_MILLIS);
+    }
+
+    public void connect(String host, int port, int connectTimeoutMillis) throws IOException {
+        connect(new InetSocketAddress(host, port), connectTimeoutMillis);
+    }
+
+    public void connect(SocketAddress endpoint, int connectTimeoutMillis) throws IOException {
+        Objects.requireNonNull(endpoint, "endpoint");
+        if (connectTimeoutMillis < 0) {
+            throw new IllegalArgumentException("Timeout must be zero or positive");
+        }
+        if (connectionClosed.get()) {
+            throw new SocketException("Socket is closed");
+        }
+        if (socket.isConnected()) {
+            throw new SocketException("Socket is already connected");
+        }
+
+        socket.connect(endpoint, connectTimeoutMillis);
+        initStreams();
+        handshakeCompleted = false;
+        isServerMode = false;
+        aesUtil = null;
+    }
+
+    private void configureSocket(Socket socket) {
+        try {
+            if (!socket.getKeepAlive()) {
+                socket.setKeepAlive(true);
+            }
+            if (!socket.getTcpNoDelay()) {
+                socket.setTcpNoDelay(true);
+            }
+        } catch (SocketException ignored) {
+        }
+    }
+
     private void initStreams() throws IOException {
+        if (inputStream != null && outputStream != null) {
+            return;
+        }
+        if (!socket.isConnected()) {
+            throw new SocketException("Socket is not connected");
+        }
         this.inputStream = new BufferedInputStream(socket.getInputStream(), BUFFER_SIZE);
         this.outputStream = new SilentBufferedOutputStream(socket.getOutputStream(), BUFFER_SIZE, connectionBroken);
     }
 
-    // ==================== 握手逻辑 ====================
+    private void ensureStreamsInitialized() throws IOException {
+        if (inputStream != null && outputStream != null) {
+            return;
+        }
+        if (connectionClosed.get() || connectionBroken.get()) {
+            throw new SocketException("Connection closed");
+        }
+        initStreams();
+    }
 
     private void ensureHandshake() throws IOException {
-        if (handshakeCompleted) return;
+        ensureStreamsInitialized();
+        if (handshakeCompleted) {
+            return;
+        }
 
-        handshakeLock.lock(); // 使用 Lock 替代 synchronized
+        handshakeLock.lock();
         try {
-            if (handshakeCompleted) return;
-            if (connectionBroken.get() || connectionClosed.get()) throw new IOException("Connection closed");
+            if (handshakeCompleted) {
+                return;
+            }
+            if (connectionBroken.get() || connectionClosed.get()) {
+                throw new IOException("Connection closed");
+            }
 
             if (isServerMode) {
                 try {
                     performServerHandshake();
-                    // 握手成功后，清除僵尸防御超时，恢复为无限等待或用户默认设置
                     socket.setSoTimeout(0);
                 } catch (Exception e) {
-                    close(); // 握手失败直接关闭
-                    if (e instanceof IOException) throw (IOException) e;
+                    close();
+                    if (e instanceof IOException ioException) {
+                        throw ioException;
+                    }
                     throw new IOException("Handshake failed", e);
                 }
-            } else {
-                // 客户端模式防御性检查
-                if (aesUtil == null) {
-                    performClientHandshake();
-                }
+            } else if (aesUtil == null) {
+                performClientHandshake();
             }
+
             handshakeCompleted = true;
         } finally {
             handshakeLock.unlock();
@@ -163,9 +251,12 @@ public class SecureSocket implements Closeable {
     }
 
     private void performClientHandshake() throws IOException {
+        ensureStreamsInitialized();
         handshakeLock.lock();
         try {
-            if (handshakeCompleted) return;
+            if (handshakeCompleted) {
+                return;
+            }
 
             byte[] serverKey = readRawPacketInternal();
             KeyFactory keyFactory = KEY_FACTORY_TL.get();
@@ -178,7 +269,9 @@ public class SecureSocket implements Closeable {
             handshakeCompleted = true;
         } catch (Exception e) {
             close();
-            if (e instanceof IOException) throw (IOException) e;
+            if (e instanceof IOException ioException) {
+                throw ioException;
+            }
             throw new IOException("Client handshake failed", e);
         } finally {
             handshakeLock.unlock();
@@ -190,18 +283,25 @@ public class SecureSocket implements Closeable {
         ka.init(keyPair.getPrivate());
         ka.doPhase(otherKey, true);
         byte[] secret = ka.generateSecret();
-        // 使用 SHA-256 派生密钥，确保均匀性
+
         MessageDigest sha = MessageDigest.getInstance("SHA-256");
         byte[] aesKey = sha.digest(secret);
         this.aesUtil = new AESUtil(new SecretKeySpec(aesKey, "AES"));
     }
 
-    // ==================== 底层读写 (核心稳定区) ====================
-
     private void writeRawPacketInternal(byte[] data) throws IOException {
-        if (connectionBroken.get()) throw new IOException("Connection broken");
+        Objects.requireNonNull(data, "data");
+        if (connectionBroken.get()) {
+            throw new IOException("Connection broken");
+        }
+
         int len = data.length;
-        byte[] header = {(byte) (len >> 24), (byte) (len >> 16), (byte) (len >> 8), (byte) len};
+        byte[] header = {
+                (byte) (len >> 24),
+                (byte) (len >> 16),
+                (byte) (len >> 8),
+                (byte) len
+        };
 
         writeLock.lock();
         try {
@@ -214,35 +314,50 @@ public class SecureSocket implements Closeable {
     }
 
     private byte[] readRawPacketInternal() throws IOException {
-        if (connectionBroken.get()) throw new IOException("Connection broken");
+        if (connectionBroken.get()) {
+            throw new IOException("Connection broken");
+        }
 
-        // 1. 读取长度头 (允许超时重试，不标记连接损坏)
         byte[] lenBytes = new byte[4];
         int readTotal = 0;
 
         try {
-            // 循环读取直到满 4 字节
             while (readTotal < 4) {
-                int c = inputStream.read(lenBytes, readTotal, 4 - readTotal);
-                if (c < 0) throw new EOFException("Connection closed by peer");
-                readTotal += c;
+                int count = inputStream.read(lenBytes, readTotal, 4 - readTotal);
+                if (count < 0) {
+                    throw new EOFException("Connection closed by peer");
+                }
+                readTotal += count;
             }
         } catch (SocketTimeoutException e) {
-            // 在读取数据头之前超时，流是干净的，可以抛出给上层处理
+            if (readTotal > 0) {
+                markConnectionBroken();
+                throw new IOException("Read timed out during packet header - connection corrupt", e);
+            }
+            throw e;
+        } catch (IOException e) {
+            if (readTotal > 0) {
+                markConnectionBroken();
+            }
             throw e;
         }
 
-        int len = ((lenBytes[0] & 0xFF) << 24) | ((lenBytes[1] & 0xFF) << 16) | ((lenBytes[2] & 0xFF) << 8) | (lenBytes[3] & 0xFF);
+        int len = ((lenBytes[0] & 0xFF) << 24)
+                | ((lenBytes[1] & 0xFF) << 16)
+                | ((lenBytes[2] & 0xFF) << 8)
+                | (lenBytes[3] & 0xFF);
 
-        if (len < 0) throw new IOException("Negative packet length: " + len);
+        if (len < 0) {
+            throw new IOException("Negative packet length: " + len);
+        }
         if (len > MAX_ALLOWED_PACKET_SIZE) {
             markConnectionBroken();
             throw new IOException("Packet too large: " + len + " (Max: " + MAX_ALLOWED_PACKET_SIZE + ")");
         }
-        if (len == 0) return new byte[0];
+        if (len == 0) {
+            return new byte[0];
+        }
 
-        // 2. 读取包体 (Java 21 readNBytes 优化)
-        // 关键逻辑：一旦开始读取包体，如果超时，说明数据流不完整，必须熔断连接
         try {
             byte[] data = inputStream.readNBytes(len);
             if (data.length < len) {
@@ -251,21 +366,24 @@ public class SecureSocket implements Closeable {
             }
             return data;
         } catch (SocketTimeoutException e) {
-            markConnectionBroken(); // 此时流已损坏
-            throw new IOException("Read timed out during packet body - Connection corrupt", e);
+            markConnectionBroken();
+            throw new IOException("Read timed out during packet body - connection corrupt", e);
         } catch (IOException e) {
             markConnectionBroken();
             throw e;
         }
     }
 
-    // ==================== Public API ====================
-
     public int sendStr(String message) throws IOException {
         ensureHandshake();
-        if (connectionBroken.get()) return -1;
-        byte[] data = (message != null ? message : STOP_STRING).getBytes(StandardCharsets.UTF_8);
-        return sendEncrypted(data);
+        if (connectionBroken.get()) {
+            return -1;
+        }
+
+        if (message == null) {
+            return sendEncryptedFrame(FRAME_TYPE_EOF, new byte[0]);
+        }
+        return sendEncryptedFrame(FRAME_TYPE_STRING, message.getBytes(StandardCharsets.UTF_8));
     }
 
     public String receiveStr() throws IOException {
@@ -274,44 +392,25 @@ public class SecureSocket implements Closeable {
 
     public String receiveStr(int timeoutMillis) throws IOException {
         ensureHandshake();
-        byte[] decrypted = receiveDecrypted(timeoutMillis);
-        if (decrypted == null) return null;
-        String str = new String(decrypted, StandardCharsets.UTF_8);
-        return str.equals(STOP_STRING) ? null : str;
-    }
-
-    public int sendRaw(byte[] data) throws IOException {
-        ensureHandshake();
-        try {
-            writeRawPacketInternal(data);
-            return 4 + data.length;
-        } catch (IOException e) {
-            handleIOException(e);
-            throw e;
+        EncryptedFrame frame = receiveFrame(timeoutMillis);
+        if (frame.type == FRAME_TYPE_EOF) {
+            return null;
         }
-    }
-
-    public byte[] receiveRaw() throws IOException {
-        return receiveRaw(0);
-    }
-
-    public byte[] receiveRaw(int timeoutMillis) throws IOException {
-        readLock.lock();
-        try {
-            ensureHandshake();
-            return receiveRawInternal(timeoutMillis);
-        } finally {
-            readLock.unlock();
+        if (frame.type != FRAME_TYPE_STRING) {
+            throw new IOException("Unexpected frame type for string receive: " + frame.type);
         }
+        return new String(frame.payload, StandardCharsets.UTF_8);
     }
 
     private byte[] receiveRawInternal(int timeoutMillis) throws IOException {
-        if (connectionBroken.get()) return new byte[0];
+        if (connectionBroken.get()) {
+            throw new IOException("Connection broken");
+        }
 
-        int original = socket.getSoTimeout();
+        int originalTimeout = socket.getSoTimeout();
         boolean timeoutChanged = false;
         try {
-            if (timeoutMillis > 0 && original != timeoutMillis) {
+            if (timeoutMillis > 0 && originalTimeout != timeoutMillis) {
                 socket.setSoTimeout(timeoutMillis);
                 timeoutChanged = true;
             }
@@ -321,55 +420,63 @@ public class SecureSocket implements Closeable {
         } catch (IOException e) {
             if (isBrokenPipeException(e)) {
                 markConnectionBroken();
-                return new byte[0];
             }
             throw e;
         } finally {
             if (timeoutChanged) {
                 try {
-                    socket.setSoTimeout(original);
+                    socket.setSoTimeout(originalTimeout);
                 } catch (Exception ignored) {
                 }
             }
         }
     }
 
-    public int sendByte(byte[] data) throws IOException {
+    public int sendBytes(byte[] data) throws IOException {
         ensureHandshake();
-        return sendEncrypted(data == null ? STOP_BYTE : data);
-    }
-
-    public int sendByte(byte[] data, int offset, int length) throws IOException {
-        ensureHandshake();
-        byte[] toSend;
         if (data == null) {
-            toSend = STOP_BYTE;
-        } else {
-            toSend = new byte[length];
-            System.arraycopy(data, offset, toSend, 0, length);
+            return sendEncryptedFrame(FRAME_TYPE_EOF, new byte[0]);
         }
-        return sendEncrypted(toSend);
+        return sendEncryptedFrame(FRAME_TYPE_BYTES, data);
     }
 
-    public byte[] receiveByte() throws IOException {
-        return receiveByte(0);
-    }
-
-    public byte[] receiveByte(int timeoutMillis) throws IOException {
+    public int sendBytes(byte[] data, int offset, int length) throws IOException {
         ensureHandshake();
-        byte[] decrypted = receiveDecrypted(timeoutMillis);
-        if (decrypted != null && decrypted.length == 1 && decrypted[0] == STOP_BYTE[0]) {
+        if (data == null) {
+            return sendEncryptedFrame(FRAME_TYPE_EOF, new byte[0]);
+        }
+
+        validateArrayRange(data, offset, length);
+        byte[] toSend = new byte[length];
+        System.arraycopy(data, offset, toSend, 0, length);
+        return sendEncryptedFrame(FRAME_TYPE_BYTES, toSend);
+    }
+
+    public byte[] receiveBytes() throws IOException {
+        return receiveBytes(0);
+    }
+
+    public byte[] receiveBytes(int timeoutMillis) throws IOException {
+        ensureHandshake();
+        EncryptedFrame frame = receiveFrame(timeoutMillis);
+        if (frame.type == FRAME_TYPE_EOF) {
             return null;
         }
-        return decrypted;
+        if (frame.type != FRAME_TYPE_BYTES) {
+            throw new IOException("Unexpected frame type for byte receive: " + frame.type);
+        }
+        return frame.payload;
     }
 
     public int sendInt(int value) throws IOException {
         ensureHandshake();
         byte[] intBytes = new byte[]{
-                (byte) (value >> 24), (byte) (value >> 16), (byte) (value >> 8), (byte) value
+                (byte) (value >> 24),
+                (byte) (value >> 16),
+                (byte) (value >> 8),
+                (byte) value
         };
-        return sendEncrypted(intBytes);
+        return sendEncryptedFrame(FRAME_TYPE_INT, intBytes);
     }
 
     public int receiveInt() throws IOException {
@@ -378,34 +485,99 @@ public class SecureSocket implements Closeable {
 
     public int receiveInt(int timeoutMillis) throws IOException {
         ensureHandshake();
-        byte[] decrypted = receiveDecrypted(timeoutMillis);
-        if (decrypted == null || decrypted.length != 4)
-            throw new IOException("Invalid int data received");
-        return ((decrypted[0] & 0xFF) << 24) | ((decrypted[1] & 0xFF) << 16) |
-                ((decrypted[2] & 0xFF) << 8) | (decrypted[3] & 0xFF);
+        EncryptedFrame frame = receiveFrame(timeoutMillis);
+        if (frame.type != FRAME_TYPE_INT) {
+            throw new IOException("Unexpected frame type for int receive: " + frame.type);
+        }
+        if (frame.payload.length != INT_PAYLOAD_LENGTH) {
+            throw new IOException("Invalid int payload length: " + frame.payload.length);
+        }
+        return ((frame.payload[0] & 0xFF) << 24)
+                | ((frame.payload[1] & 0xFF) << 16)
+                | ((frame.payload[2] & 0xFF) << 8)
+                | (frame.payload[3] & 0xFF);
     }
 
-    private int sendEncrypted(byte[] plainData) throws IOException {
+    private static void validateArrayRange(byte[] data, int offset, int length) {
+        if (offset < 0 || length < 0 || offset > data.length - length) {
+            throw new IllegalArgumentException("Invalid offset or length");
+        }
+    }
+
+    private int sendEncryptedFrame(byte frameType, byte[] payload) throws IOException {
+        byte[] plainFrame = buildFrame(frameType, payload);
         try {
-            byte[] encrypted = aesUtil.encrypt(plainData);
+            byte[] encrypted = aesUtil.encrypt(plainFrame);
             writeRawPacketInternal(encrypted);
             return 4 + encrypted.length;
         } catch (IOException e) {
             handleIOException(e);
-            return -1;
+            throw e;
         }
     }
 
+    private static byte[] buildFrame(byte frameType, byte[] payload) {
+        Objects.requireNonNull(payload, "payload");
+        byte[] frame = new byte[payload.length + 1];
+        frame[0] = frameType;
+        if (payload.length > 0) {
+            System.arraycopy(payload, 0, frame, 1, payload.length);
+        }
+        return frame;
+    }
+
+    private EncryptedFrame receiveFrame(int timeoutMillis) throws IOException {
+        byte[] decrypted = receiveDecrypted(timeoutMillis);
+        return decodeFrame(decrypted);
+    }
+
+    private EncryptedFrame decodeFrame(byte[] decrypted) throws IOException {
+        if (decrypted.length == 0) {
+            throw new IOException("Invalid frame: missing frame type");
+        }
+
+        byte frameType = decrypted[0];
+        int payloadLength = decrypted.length - 1;
+        byte[] payload = new byte[payloadLength];
+        if (payloadLength > 0) {
+            System.arraycopy(decrypted, 1, payload, 0, payloadLength);
+        }
+
+        if (frameType == FRAME_TYPE_EOF && payloadLength != 0) {
+            throw new IOException("Invalid EOF frame payload length: " + payloadLength);
+        }
+        if (frameType == FRAME_TYPE_INT && payloadLength != INT_PAYLOAD_LENGTH) {
+            throw new IOException("Invalid int frame payload length: " + payloadLength);
+        }
+        if (frameType != FRAME_TYPE_STRING
+                && frameType != FRAME_TYPE_BYTES
+                && frameType != FRAME_TYPE_INT
+                && frameType != FRAME_TYPE_EOF) {
+            throw new IOException("Unknown frame type: " + frameType);
+        }
+
+        return new EncryptedFrame(frameType, payload);
+    }
+
     private byte[] receiveDecrypted(int timeoutMillis) throws IOException {
-        readLock.lock(); // 确保读取操作串行化
+        readLock.lock();
         try {
-            if (connectionBroken.get()) return null;
+            if (connectionBroken.get()) {
+                throw new IOException("Connection broken");
+            }
 
-            // 复用 receiveRawInternal 处理超时和IO
             byte[] encrypted = receiveRawInternal(timeoutMillis);
-            if (encrypted.length == 0) return null; // 空包或错误
+            if (encrypted.length == 0) {
+                markConnectionBroken();
+                throw new IOException("Invalid encrypted packet: empty raw packet");
+            }
 
-            return aesUtil.decrypt(encrypted);
+            try {
+                return aesUtil.decrypt(encrypted);
+            } catch (RuntimeException e) {
+                markConnectionBroken();
+                throw new IOException("Encrypted frame authentication failed", e);
+            }
         } finally {
             readLock.unlock();
         }
@@ -421,13 +593,15 @@ public class SecureSocket implements Closeable {
     private boolean isBrokenPipeException(IOException e) {
         if (e instanceof SocketException || e instanceof EOFException) {
             String message = e.getMessage();
-            if (message == null) return true; // EOF usually implies closure
+            if (message == null) {
+                return true;
+            }
             message = message.toLowerCase();
-            return message.contains("broken pipe") ||
-                    message.contains("connection reset") ||
-                    message.contains("socket closed") ||
-                    message.contains("connection closed") ||
-                    message.contains("software caused connection abort");
+            return message.contains("broken pipe")
+                    || message.contains("connection reset")
+                    || message.contains("socket closed")
+                    || message.contains("connection closed")
+                    || message.contains("software caused connection abort");
         }
         return false;
     }
@@ -443,29 +617,33 @@ public class SecureSocket implements Closeable {
 
     @Override
     public void close() throws IOException {
-        // 原子操作，防止多次关闭
-        if (connectionClosed.getAndSet(true)) return;
+        if (connectionClosed.getAndSet(true)) {
+            return;
+        }
 
         connectionBroken.set(true);
 
-        // 依次关闭资源，互不影响
         try {
-            if (inputStream != null) inputStream.close();
+            if (inputStream != null) {
+                inputStream.close();
+            }
         } catch (Throwable ignored) {
         }
 
         try {
-            if (outputStream != null) outputStream.close();
+            if (outputStream != null) {
+                outputStream.close();
+            }
         } catch (Throwable ignored) {
         }
 
         try {
-            if (socket != null) socket.close();
+            if (socket != null) {
+                socket.close();
+            }
         } catch (Throwable ignored) {
         }
     }
-
-    // ==================== 代理方法 ====================
 
     public void shutdownInput() throws IOException {
         if (socket != null && !socket.isClosed()) {
@@ -475,8 +653,6 @@ public class SecureSocket implements Closeable {
 
     public void shutdownOutput() throws IOException {
         if (socket != null && !socket.isClosed()) {
-            // 注意：不建议在 shutdownOutput 前强制 flush 加密流，因为这可能导致并发问题。
-            // 如果业务需要确保数据发出，应在调用此方法前在业务层确保发送完毕。
             socket.shutdownOutput();
         }
     }
@@ -565,24 +741,37 @@ public class SecureSocket implements Closeable {
         socket.setSendBufferSize(size);
     }
 
-    // 内部类：静默输出流，防止 write 时抛出异常影响流程控制（由上层 handleIOException 处理）
+    private static final class EncryptedFrame {
+        private final byte type;
+        private final byte[] payload;
+
+        private EncryptedFrame(byte type, byte[] payload) {
+            this.type = type;
+            this.payload = payload;
+        }
+    }
+
     private static class SilentBufferedOutputStream extends BufferedOutputStream {
         private final AtomicBoolean connectionBroken;
 
-        public SilentBufferedOutputStream(OutputStream out, int size, AtomicBoolean connectionBroken) {
+        private SilentBufferedOutputStream(OutputStream out, int size, AtomicBoolean connectionBroken) {
             super(out, size);
             this.connectionBroken = connectionBroken;
         }
 
         @Override
         public void write(byte[] b, int off, int len) throws IOException {
-            if (connectionBroken.get()) throw new IOException("Connection broken");
+            if (connectionBroken.get()) {
+                throw new IOException("Connection broken");
+            }
             super.write(b, off, len);
         }
 
         @Override
         public void flush() throws IOException {
-            if (connectionBroken.get()) return;
+            if (connectionBroken.get()) {
+                return;
+            }
             super.flush();
         }
     }

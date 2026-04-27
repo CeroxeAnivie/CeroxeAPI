@@ -7,7 +7,8 @@ public final class Sleeper {
     public static void sleep(long millis) {
         try {
             Thread.sleep(millis);
-        } catch (Exception ignore) {
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 }
