@@ -1,22 +1,23 @@
-﻿# CeroxeAPI
+# CeroxeAPI
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://openjdk.org/projects/jdk/21/)
-[![Version](https://img.shields.io/badge/version-1.0.0-green.svg)](https://central.sonatype.com/)
+[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](https://central.sonatype.com/)
 
 CeroxeAPI 是一组面向 Java 21 的模块化工具 API，提供网络通信、加密、日志、线程、系统检测、进程管理、邮件发送等常用能力。
 
-从 `1.0.0` 开始，项目按 Maven 多模块方式发布。你可以只导入自己需要的模块，而不是一次性引入所有功能。
+项目按 Maven 多模块方式发布。你可以只导入自己需要的模块，而不是一次性引入所有功能。
 
 ## 版本说明
 
-当前推荐版本：`1.0.0`
+当前推荐版本：`2.0.0`
 
-`1.0.0` 是一次新的稳定版本。所有模块版本已统一为 `1.0.0`，并补充了 Maven Wrapper 和正式测试。
+`2.0.0` 已将 Maven `groupId` 和 Java 包名统一迁移为 `top.ceroxe.api`，所有模块版本统一为 `2.0.0`。
 
 如果你使用过旧版本，请注意：
 
-- `SecureSocket` 协议在 `1.0.0` 中已经升级，旧版本客户端和新版本服务端不能混用。
+- 从 `1.x` 升级时，依赖坐标和 Java `import` 需要从 `fun.ceroxe.api` 改为 `top.ceroxe.api`。
+- `SecureSocket` 协议在早期版本中已经升级，旧版本客户端和新版本服务端不能混用。
 - 字节传输 API 统一为 `sendBytes` / `receiveBytes`。
 - 旧版本中的 `sendByte` / `receiveByte` 已移除。
 
@@ -53,9 +54,9 @@ Linux/macOS：
 
 ```xml
 <dependency>
-    <groupId>fun.ceroxe.api</groupId>
+    <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-core</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 
@@ -63,9 +64,9 @@ Linux/macOS：
 
 ```xml
 <dependency>
-    <groupId>fun.ceroxe.api</groupId>
+    <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-detector</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 
@@ -73,9 +74,9 @@ Linux/macOS：
 
 ```xml
 <dependency>
-    <groupId>fun.ceroxe.api</groupId>
+    <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-process</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 
@@ -83,9 +84,9 @@ Linux/macOS：
 
 ```xml
 <dependency>
-    <groupId>fun.ceroxe.api</groupId>
+    <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-mail</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
 </dependency>
 ```
 
@@ -95,7 +96,7 @@ Kotlin DSL：
 
 ```kotlin
 dependencies {
-    implementation("fun.ceroxe.api:ceroxe-core:1.0.0")
+    implementation("top.ceroxe.api:ceroxe-core:2.0.0")
 }
 ```
 
@@ -103,7 +104,7 @@ Groovy DSL：
 
 ```groovy
 dependencies {
-    implementation 'fun.ceroxe.api:ceroxe-core:1.0.0'
+    implementation 'top.ceroxe.api:ceroxe-core:2.0.0'
 }
 ```
 
@@ -114,7 +115,7 @@ dependencies {
 ### 加密工具
 
 ```java
-import fun.ceroxe.api.security.encryption.AESUtil;
+import top.ceroxe.api.security.encryption.AESUtil;
 
 AESUtil aes = new AESUtil(256);
 byte[] encrypted = aes.encrypt("hello".getBytes());
@@ -126,8 +127,8 @@ byte[] plain = aes.decrypt(encrypted);
 服务端：
 
 ```java
-import fun.ceroxe.api.net.SecureServerSocket;
-import fun.ceroxe.api.net.SecureSocket;
+import top.ceroxe.api.net.SecureServerSocket;
+import top.ceroxe.api.net.SecureSocket;
 
 try (SecureServerSocket server = new SecureServerSocket(25565);
      SecureSocket socket = server.accept()) {
@@ -139,7 +140,7 @@ try (SecureServerSocket server = new SecureServerSocket(25565);
 客户端：
 
 ```java
-import fun.ceroxe.api.net.SecureSocket;
+import top.ceroxe.api.net.SecureSocket;
 
 try (SecureSocket socket = new SecureSocket("127.0.0.1", 25565)) {
     socket.sendBytes("hello".getBytes());
@@ -150,9 +151,9 @@ try (SecureSocket socket = new SecureSocket("127.0.0.1", 25565)) {
 ### 日志工具
 
 ```java
-import fun.ceroxe.api.print.log.Loggist;
-import fun.ceroxe.api.print.log.LogType;
-import fun.ceroxe.api.print.log.State;
+import top.ceroxe.api.print.log.Loggist;
+import top.ceroxe.api.print.log.LogType;
+import top.ceroxe.api.print.log.State;
 
 try (Loggist log = new Loggist("logs/app.log")) {
     log.say(new State(LogType.INFO, "app", "started"));
@@ -162,7 +163,7 @@ try (Loggist log = new Loggist("logs/app.log")) {
 ### 系统检测
 
 ```java
-import fun.ceroxe.api.OshiUtils;
+import top.ceroxe.api.OshiUtils;
 
 String os = OshiUtils.getOsString();
 String cpu = OshiUtils.getCpuModel();
@@ -172,7 +173,7 @@ String memory = OshiUtils.getMemoryInfoReadable();
 ### 进程管理
 
 ```java
-import fun.ceroxe.api.ProcessContainer;
+import top.ceroxe.api.ProcessContainer;
 
 Process process = ProcessContainer.start("java", "-version");
 process.waitFor();
@@ -181,7 +182,7 @@ process.waitFor();
 ### 邮件发送
 
 ```java
-import fun.ceroxe.api.EmailTool;
+import top.ceroxe.api.EmailTool;
 
 EmailTool.EmailConfig config = new EmailTool.EmailConfig(
         "smtp.example.com",
