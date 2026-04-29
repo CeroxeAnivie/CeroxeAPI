@@ -5,13 +5,13 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>fun.ceroxe.api</groupId>
+        <groupId>top.ceroxe.api</groupId>
         <artifactId>ceroxe-parent</artifactId>
-        <version>1.0.0</version>
+        <version>2.0.0</version>
     </parent>
 
     <artifactId>ceroxe-process</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <packaging>jar</packaging>
 
     <name>CeroxeAPI Process</name>

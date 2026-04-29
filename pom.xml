@@ -4,9 +4,9 @@
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
-    <groupId>fun.ceroxe.api</groupId>
+    <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-parent</artifactId>
-    <version>1.0.0</version>
+    <version>2.0.0</version>
     <packaging>pom</packaging>
 
     <name>CeroxeAPI</name>
@@ -41,7 +41,7 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <ceroxe.version>1.0.0</ceroxe.version>
+        <ceroxe.version>2.0.0</ceroxe.version>
         <jline.version>3.30.9</jline.version>
         <slf4j.version>2.0.17</slf4j.version>
         <oshi.version>6.12.0</oshi.version>
@@ -68,7 +68,7 @@
     <dependencyManagement>
         <dependencies>
             <dependency>
-                <groupId>fun.ceroxe.api</groupId>
+                <groupId>top.ceroxe.api</groupId>
                 <artifactId>ceroxe-core</artifactId>
                 <version>${ceroxe.version}</version>
             </dependency>
