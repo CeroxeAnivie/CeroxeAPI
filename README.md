@@ -233,3 +233,39 @@ EmailTool.send(config, "target@example.com", "Subject", "<b>Hello</b>");
 ## 许可证
 
 CeroxeAPI 使用 [MIT License](https://opensource.org/licenses/MIT) 开源。
+## Android Module Status
+
+The Android library now lives in:
+
+- `android/ceroxe-core-android`
+
+Current status:
+
+- the Android module builds successfully
+- the Android module passes local unit tests and `connectedAndroidTest`
+- the Android module has been submitted to Sonatype Central Portal for Maven Central publication
+- Maven Central indexing may take some time before the artifact page becomes searchable
+
+```xml
+<dependency>
+    <groupId>top.ceroxe.api</groupId>
+    <artifactId>ceroxe-core-android</artifactId>
+    <version>2.0.0</version>
+</dependency>
+```
+
+Gradle Kotlin DSL after publication:
+
+```kotlin
+dependencies {
+    implementation("top.ceroxe.api:ceroxe-core-android:2.0.0")
+}
+```
+
+Gradle Groovy DSL after publication:
+
+```groovy
+dependencies {
+    implementation 'top.ceroxe.api:ceroxe-core-android:2.0.0'
+}
+```

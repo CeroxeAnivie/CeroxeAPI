@@ -1,0 +1,2 @@
+# Point this to your local Android SDK when ANDROID_HOME / ANDROID_SDK_ROOT is not set.
+sdk.dir=C:\\Android\\Sdk

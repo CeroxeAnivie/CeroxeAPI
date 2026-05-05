@@ -59,6 +59,7 @@
     </properties>
 
     <modules>
+        <module>ceroxe-core-shared</module>
         <module>ceroxe-core</module>
         <module>ceroxe-detector</module>
         <module>ceroxe-process</module>
@@ -70,6 +71,11 @@
             <dependency>
                 <groupId>top.ceroxe.api</groupId>
                 <artifactId>ceroxe-core</artifactId>
+                <version>${ceroxe.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>top.ceroxe.api</groupId>
+                <artifactId>ceroxe-core-shared</artifactId>
                 <version>${ceroxe.version}</version>
             </dependency>
             <dependency>
@@ -203,7 +209,6 @@
                 <extensions>true</extensions>
                 <configuration>
                     <publishingServerId>central</publishingServerId>
-                    <tokenAuth>true</tokenAuth>
                     <autoPublish>true</autoPublish>
                 </configuration>
             </plugin>

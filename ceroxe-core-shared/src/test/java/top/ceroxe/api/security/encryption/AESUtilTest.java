@@ -8,7 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
-class CryptoUtilTest {
+class AESUtilTest {
 
     @Test
     void aesEncryptDecryptRoundTripsBytesAndBase64Text() {
@@ -21,8 +21,10 @@ class CryptoUtilTest {
         String text = "hello-\u0004-\uD83D\uDE00";
         String encryptedText = aes.encryptToBase64(text);
         assertNotEquals(text, encryptedText);
-        assertArrayEquals(text.getBytes(StandardCharsets.UTF_8),
-                aes.decryptFromBase64(encryptedText).getBytes(StandardCharsets.UTF_8));
+        assertArrayEquals(
+                text.getBytes(StandardCharsets.UTF_8),
+                aes.decryptFromBase64(encryptedText).getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     @Test
@@ -42,21 +44,5 @@ class CryptoUtilTest {
         encrypted[encrypted.length - 1] ^= 1;
 
         assertThrows(SecurityException.class, () -> aes.decrypt(encrypted));
-    }
-
-    @Test
-    void rsaEncryptDecryptRoundTripsAndRejectsInvalidRanges() {
-        RSAUtil rsa = new RSAUtil(2048);
-        byte[] data = "rsa-payload".getBytes(StandardCharsets.UTF_8);
-
-        assertArrayEquals(data, rsa.decrypt(rsa.encrypt(data)));
-        assertArrayEquals(new byte[]{'s', 'a'}, rsa.decrypt(rsa.encrypt(data, 1, 2)));
-        assertThrows(IllegalArgumentException.class, () -> rsa.encrypt(data, -1, 1));
-        assertThrows(IllegalArgumentException.class, () -> rsa.decrypt(null));
-    }
-
-    @Test
-    void rsaRejectsTooSmallKeySize() {
-        assertThrows(IllegalArgumentException.class, () -> new RSAUtil(512));
     }
 }
