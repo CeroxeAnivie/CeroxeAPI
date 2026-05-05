@@ -37,4 +37,17 @@ build/
 ### Mac OS ###
 .DS_Store
 
-logs
+### Gradle ###
+.gradle/
+
+### Android ###
+local.properties
+
+### Logs ###
+logs/
+*.log
+
+### Temp files ###
+*.tmp
+*.bak
+*~
