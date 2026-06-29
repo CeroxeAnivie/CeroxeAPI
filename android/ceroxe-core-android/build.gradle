@@ -24,7 +24,7 @@ plugins {
 apply plugin: 'com.android.library'
 
 group = 'top.ceroxe.api'
-version = '2.0.0'
+version = '2.0.2'
 
 nmcp {
     publishAllPublicationsToCentralPortal {

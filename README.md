@@ -2,7 +2,7 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Java](https://img.shields.io/badge/Java-21%2B-blue.svg)](https://openjdk.org/projects/jdk/21/)
-[![Version](https://img.shields.io/badge/version-2.0.0-green.svg)](https://central.sonatype.com/)
+[![Version](https://img.shields.io/badge/version-2.0.2-green.svg)](https://central.sonatype.com/)
 
 CeroxeAPI 是一组面向 Java 21 的模块化工具 API，提供网络通信、加密、日志、线程、系统检测、进程管理、邮件发送等常用能力。
 
@@ -10,9 +10,9 @@ CeroxeAPI 是一组面向 Java 21 的模块化工具 API，提供网络通信、
 
 ## 版本说明
 
-当前推荐版本：`2.0.0`
+当前推荐版本：`2.0.2`
 
-`2.0.0` 已将 Maven `groupId` 和 Java 包名统一迁移为 `top.ceroxe.api`，所有模块版本统一为 `2.0.0`。
+`2.0.2` 维持 Maven `groupId` 和 Java 包名统一为 `top.ceroxe.api`，所有模块版本统一为 `2.0.2`。`ceroxe-core-shared` 继续提供 Java 17 字节码基线，并新增平台线程任务工具 `TaskManager`；`ceroxe-core` 中的 `ThreadManager` 等 JVM 工具类保持 Java 21 虚拟线程能力。
 
 如果你使用过旧版本，请注意：
 
@@ -43,6 +43,7 @@ Linux/macOS：
 
 | 模块 | Maven Artifact ID | 适合场景 |
 | --- | --- | --- |
+| Core Shared | `ceroxe-core-shared` | Java 17 基线的共享工具、加密、安全 Socket、平台线程 `TaskManager` |
 | Core | `ceroxe-core` | 基础工具、加密、网络通信、日志、线程、控制台、配置读取 |
 | Detector | `ceroxe-detector` | 获取系统、硬件、网络、Windows 进程相关信息 |
 | Process | `ceroxe-process` | 启动并托管子进程 |
@@ -56,7 +57,7 @@ Linux/macOS：
 <dependency>
     <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-core</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
 </dependency>
 ```
 
@@ -66,7 +67,7 @@ Linux/macOS：
 <dependency>
     <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-detector</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
 </dependency>
 ```
 
@@ -76,7 +77,7 @@ Linux/macOS：
 <dependency>
     <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-process</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
 </dependency>
 ```
 
@@ -86,7 +87,7 @@ Linux/macOS：
 <dependency>
     <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-mail</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
 </dependency>
 ```
 
@@ -96,7 +97,7 @@ Kotlin DSL：
 
 ```kotlin
 dependencies {
-    implementation("top.ceroxe.api:ceroxe-core:2.0.0")
+    implementation("top.ceroxe.api:ceroxe-core:2.0.2")
 }
 ```
 
@@ -104,7 +105,7 @@ Groovy DSL：
 
 ```groovy
 dependencies {
-    implementation 'top.ceroxe.api:ceroxe-core:2.0.0'
+    implementation 'top.ceroxe.api:ceroxe-core:2.0.2'
 }
 ```
 
@@ -145,6 +146,44 @@ import top.ceroxe.api.net.SecureSocket;
 try (SecureSocket socket = new SecureSocket("127.0.0.1", 25565)) {
     socket.sendBytes("hello".getBytes());
     byte[] response = socket.receiveBytes();
+}
+```
+
+### Java 17 平台线程任务工具
+
+`TaskManager` 位于 `ceroxe-core-shared`，使用守护平台线程实现，适合 Java 17 运行时和需要稳定字节码基线的依赖方。Java 21+ 项目如果需要虚拟线程，请使用 `ceroxe-core` 中的 `ThreadManager`。
+
+```xml
+<dependency>
+    <groupId>top.ceroxe.api</groupId>
+    <artifactId>ceroxe-core-shared</artifactId>
+    <version>2.0.2</version>
+</dependency>
+```
+
+```java
+import top.ceroxe.api.thread.TaskManager;
+
+try (TaskManager manager = new TaskManager(
+        () -> doFirstJob(),
+        () -> doSecondJob()
+)) {
+    manager.start();
+}
+```
+
+### Java 21 虚拟线程任务工具
+
+`ThreadManager` 位于 `ceroxe-core`，使用 Java 21 虚拟线程，适合高并发 I/O 型 JVM 应用。Java 17 运行时不要依赖 `ceroxe-core`。
+
+```java
+import top.ceroxe.api.thread.ThreadManager;
+
+try (ThreadManager manager = new ThreadManager(
+        () -> doFirstJob(),
+        () -> doSecondJob()
+)) {
+    manager.start();
 }
 ```
 
@@ -250,7 +289,7 @@ Current status:
 <dependency>
     <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-core-android</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
 </dependency>
 ```
 
@@ -258,7 +297,7 @@ Gradle Kotlin DSL after publication:
 
 ```kotlin
 dependencies {
-    implementation("top.ceroxe.api:ceroxe-core-android:2.0.0")
+    implementation("top.ceroxe.api:ceroxe-core-android:2.0.2")
 }
 ```
 
@@ -266,6 +305,6 @@ Gradle Groovy DSL after publication:
 
 ```groovy
 dependencies {
-    implementation 'top.ceroxe.api:ceroxe-core-android:2.0.0'
+    implementation 'top.ceroxe.api:ceroxe-core-android:2.0.2'
 }
 ```

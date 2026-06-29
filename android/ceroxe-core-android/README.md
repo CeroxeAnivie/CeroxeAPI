@@ -4,7 +4,7 @@ Standalone Android library packaging for the Ceroxe shared core utilities.
 
 ## Structure
 
-- `../../ceroxe-core-shared/src/main/java`: shared cross-platform implementation sources
+- `../../ceroxe-core-shared/src/main/java`: shared cross-platform implementation sources, including the Java 17 platform-thread `TaskManager`
 - `src/main/java`: Android-only sources, currently the Android `ThreadManager`
 - `src/test/java`: Android local unit tests
 - `src/androidTest/java`: instrumentation checks for Android runtime contracts
@@ -27,7 +27,7 @@ Coordinate:
 <dependency>
     <groupId>top.ceroxe.api</groupId>
     <artifactId>ceroxe-core-android</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
 </dependency>
 ```
 
@@ -35,7 +35,7 @@ Gradle Kotlin DSL:
 
 ```kotlin
 dependencies {
-    implementation("top.ceroxe.api:ceroxe-core-android:2.0.0")
+    implementation("top.ceroxe.api:ceroxe-core-android:2.0.2")
 }
 ```
 
@@ -43,7 +43,7 @@ Gradle Groovy DSL:
 
 ```groovy
 dependencies {
-    implementation 'top.ceroxe.api:ceroxe-core-android:2.0.0'
+    implementation 'top.ceroxe.api:ceroxe-core-android:2.0.2'
 }
 ```
 

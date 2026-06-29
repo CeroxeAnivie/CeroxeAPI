@@ -7,11 +7,11 @@
     <parent>
         <groupId>top.ceroxe.api</groupId>
         <artifactId>ceroxe-parent</artifactId>
-        <version>2.0.0</version>
+        <version>2.0.2</version>
     </parent>
 
     <artifactId>ceroxe-detector</artifactId>
-    <version>2.0.0</version>
+    <version>2.0.2</version>
     <packaging>jar</packaging>
 
     <name>CeroxeAPI Detector</name>

@@ -2,7 +2,7 @@
 
 The repository now separates cross-platform utility code from platform packaging:
 
-- `ceroxe-core-shared`: shared Java 17 sources for `AESUtil`, `SecureSocket`, `SecureServerSocket`, and `Sleeper`
+- `ceroxe-core-shared`: shared Java 17 sources for `AESUtil`, `SecureSocket`, `SecureServerSocket`, `Sleeper`, and the platform-thread `TaskManager`
 - `ceroxe-core`: JVM-focused core module that depends on `ceroxe-core-shared` and keeps Java 21-specific utilities such as the JVM `ThreadManager`
 - `android/ceroxe-core-android`: standalone Android Gradle library that reuses `ceroxe-core-shared` sources and provides the Android `ThreadManager`
 
@@ -11,7 +11,7 @@ The repository now separates cross-platform utility code from platform packaging
 - shared protocol and crypto logic now has a single source of truth
 - Maven and Android builds can evolve independently
 - Android packaging is no longer coupled to the parent Maven reactor
-- JVM-only concurrency utilities stay on the JVM side instead of leaking into Android packaging
+- Java 17-safe shared concurrency uses `TaskManager`; Java 21 virtual-thread concurrency stays in `ceroxe-core` as `ThreadManager`
 
 ## Android Runtime Contract
 
